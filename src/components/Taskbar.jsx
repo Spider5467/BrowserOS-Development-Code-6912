@@ -158,9 +158,9 @@ const Taskbar = ({ onStartClick, openApps, onAppClick, onAppOpen, darkMode, setD
             {openApps.map(app => (
               <motion.div
                 key={app.id}
-                className={`h-10 px-2 flex items-center ${darkMode ? 'bg-gray-800' : 'bg-gray-700'} rounded-lg hover:bg-opacity-80 cursor-pointer`}
+                className={`h-10 px-2 flex items-center ${darkMode ? 'bg-gray-800' : 'bg-gray-700'} rounded-lg cursor-pointer`}
                 onClick={() => handleAppClick(app.id)}
-                whileHover={{ scale: 1.05 }}
+                whileHover={{ backgroundColor: darkMode ? 'rgba(55, 65, 81, 0.8)' : 'rgba(75, 85, 99, 0.8)' }}
                 whileTap={{ scale: 0.95 }}
               >
                 <div className="w-6 h-6 mr-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded p-1 flex items-center justify-center">
@@ -198,7 +198,7 @@ const Taskbar = ({ onStartClick, openApps, onAppClick, onAppOpen, darkMode, setD
           <motion.div 
             className={`${darkMode ? 'bg-gray-800' : 'bg-gray-700'} rounded-lg px-3 py-1 text-white cursor-pointer`}
             onClick={() => handleOpenApp('calendar')}
-            whileHover={{ scale: 1.05 }}
+            whileHover={{ backgroundColor: darkMode ? 'rgba(55, 65, 81, 0.8)' : 'rgba(75, 85, 99, 0.8)' }}
             whileTap={{ scale: 0.95 }}
           >
             <div className="text-xs font-medium">{formattedTime}</div>
