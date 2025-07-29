@@ -19,8 +19,20 @@ const Desktop = () => {
   const [openApps, setOpenApps] = useState([]);
   const [installedApps, setInstalledApps] = useState([]);
   const [darkMode, setDarkMode] = useState(false);
+  const [iconPositions, setIconPositions] = useState({});
   const desktopRef = useRef(null);
   
+  // Default icon positions (grid coordinates)
+  const defaultIconPositions = {
+    'browser': { x: 0, y: 0 },
+    'appstore': { x: 0, y: 1 },
+    'explorer': { x: 0, y: 2 },
+    'cmd': { x: 0, y: 3 },
+    'notepad': { x: 0, y: 4 },
+    'eaglercraft': { x: 0, y: 5 },
+    'solitaire': { x: 0, y: 6 }
+  };
+
   // Load saved state on mount
   useEffect(() => {
     const loadSavedState = () => {
@@ -29,11 +41,17 @@ const Desktop = () => {
         const savedOpenApps = localStorage.getItem('browserOS_openApps');
         const savedInstalledApps = localStorage.getItem('browserOS_installedApps');
         const savedDarkMode = localStorage.getItem('browserOS_darkMode');
+        const savedIconPositions = localStorage.getItem('browserOS_iconPositions');
         
         if (savedWindows) setWindows(JSON.parse(savedWindows));
         if (savedOpenApps) setOpenApps(JSON.parse(savedOpenApps));
         if (savedInstalledApps) setInstalledApps(JSON.parse(savedInstalledApps));
         if (savedDarkMode) setDarkMode(JSON.parse(savedDarkMode));
+        if (savedIconPositions) {
+          setIconPositions(JSON.parse(savedIconPositions));
+        } else {
+          setIconPositions(defaultIconPositions);
+        }
         
         // Show continue dialog if there are saved windows
         if (savedWindows && JSON.parse(savedWindows).length > 0) {
@@ -45,12 +63,13 @@ const Desktop = () => {
         }
       } catch (error) {
         console.error('Error loading saved state:', error);
+        setIconPositions(defaultIconPositions);
       }
     };
     
     loadSavedState();
   }, []);
-  
+
   // Save state when it changes
   useEffect(() => {
     try {
@@ -58,10 +77,11 @@ const Desktop = () => {
       localStorage.setItem('browserOS_openApps', JSON.stringify(openApps));
       localStorage.setItem('browserOS_installedApps', JSON.stringify(installedApps));
       localStorage.setItem('browserOS_darkMode', JSON.stringify(darkMode));
+      localStorage.setItem('browserOS_iconPositions', JSON.stringify(iconPositions));
     } catch (error) {
       console.error('Error saving state:', error);
     }
-  }, [windows, openApps, installedApps, darkMode]);
+  }, [windows, openApps, installedApps, darkMode, iconPositions]);
 
   const createWindow = (type, url = '', title = '', appIcon = '') => {
     const newZIndex = zIndexCounter + 1;
@@ -103,17 +123,14 @@ const Desktop = () => {
   };
   
   const reopenApp = (appId) => {
-    // Check if this app is already open
     const existingWindow = windows.find(window => window.id === appId);
     if (existingWindow) {
       bringToFront(existingWindow.id);
       return;
     }
     
-    // Find the app in openApps to get its details
     const app = openApps.find(app => app.id === appId);
     if (app) {
-      // Create a new window for this app
       createWindow(app.type, app.url, app.title, app.icon);
     }
   };
@@ -160,14 +177,12 @@ const Desktop = () => {
         createWindow('solitaire', '', 'Solitaire', 'solitaire_icon.png');
         break;
       default:
-        // For custom apps from app store
         createWindow('browser', url, title, `${type}_icon.png`);
         break;
     }
   };
   
   const handleAppInstall = (appId, appUrl, appTitle) => {
-    // Check if the app is already installed
     if (!installedApps.some(app => app.id === appId)) {
       const newApp = {
         id: appId,
@@ -177,11 +192,49 @@ const Desktop = () => {
       };
       setInstalledApps([...installedApps, newApp]);
       
-      // Also create a window for the newly installed app
+      // Find next available position for new app
+      const nextPosition = findNextAvailablePosition();
+      setIconPositions(prev => ({
+        ...prev,
+        [appId]: nextPosition
+      }));
+      
       createWindow('browser', appUrl, appTitle, `${appId}_icon.png`);
     } else {
-      // If already installed, just open it
       handleIconClick(appId, appUrl, appTitle);
+    }
+  };
+
+  const findNextAvailablePosition = () => {
+    const occupiedPositions = new Set(
+      Object.values(iconPositions).map(pos => `${pos.x},${pos.y}`)
+    );
+    
+    // Start from column 0, then move to next columns
+    for (let x = 0; x < 10; x++) {
+      for (let y = 0; y < 15; y++) {
+        const posKey = `${x},${y}`;
+        if (!occupiedPositions.has(posKey)) {
+          return { x, y };
+        }
+      }
+    }
+    
+    // Fallback if somehow all positions are taken
+    return { x: 1, y: 0 };
+  };
+
+  const handleIconPositionChange = (iconId, newPosition) => {
+    // Check if position is already occupied
+    const isOccupied = Object.entries(iconPositions).some(([id, pos]) => 
+      id !== iconId && pos.x === newPosition.x && pos.y === newPosition.y
+    );
+    
+    if (!isOccupied) {
+      setIconPositions(prev => ({
+        ...prev,
+        [iconId]: newPosition
+      }));
     }
   };
 
@@ -202,6 +255,17 @@ const Desktop = () => {
     return [...systemApps, ...installedApps];
   };
 
+  // System apps to render
+  const systemApps = [
+    { id: 'browser', icon: 'browser_icon.png', label: 'Browser' },
+    { id: 'appstore', icon: 'appstore_icon.png', label: 'App Store' },
+    { id: 'explorer', icon: 'explorer_icon.png', label: 'Explorer' },
+    { id: 'cmd', icon: 'cmd_icon.png', label: 'CMD' },
+    { id: 'notepad', icon: 'notepad_icon.png', label: 'Notepad' },
+    { id: 'eaglercraft', icon: 'eaglercraft_icon.png', label: 'Eaglercraft' },
+    { id: 'solitaire', icon: 'solitaire_icon.png', label: 'Solitaire' }
+  ];
+
   return (
     <div 
       className={`h-screen w-full relative overflow-hidden ${darkMode ? 'dark' : ''}`}
@@ -215,61 +279,49 @@ const Desktop = () => {
       }}
       ref={desktopRef}
     >
-      <div className="p-4 grid grid-cols-1 gap-4 w-20">
-        <DesktopIcon 
-          icon="browser_icon.png" 
-          label="Browser" 
-          onClick={() => handleIconClick('browser')} 
+      {/* Grid overlay for development (remove in production) */}
+      {/* <div className="absolute inset-0 pointer-events-none opacity-10">
+        {Array.from({ length: Math.ceil(window.innerWidth / 80) }).map((_, x) =>
+          Array.from({ length: Math.ceil(window.innerHeight / 80) }).map((_, y) => (
+            <div
+              key={`${x}-${y}`}
+              className="absolute border border-white"
+              style={{
+                left: 8 + x * 80,
+                top: 8 + y * 80,
+                width: 80,
+                height: 80
+              }}
+            />
+          ))
+        )}
+      </div> */}
+
+      {/* System Apps */}
+      {systemApps.map((app) => (
+        <DesktopIcon
+          key={app.id}
+          icon={app.icon}
+          label={app.label}
+          onClick={() => handleIconClick(app.id)}
           darkMode={darkMode}
+          gridPosition={iconPositions[app.id] || { x: 0, y: 0 }}
+          onPositionChange={(newPos) => handleIconPositionChange(app.id, newPos)}
         />
-        <DesktopIcon 
-          icon="appstore_icon.png" 
-          label="App Store" 
-          onClick={() => handleIconClick('appstore')} 
+      ))}
+
+      {/* Installed Apps */}
+      {installedApps.map((app) => (
+        <DesktopIcon
+          key={app.id}
+          icon={`${app.id}_icon.png`}
+          label={app.title}
+          onClick={() => handleIconClick(app.id, app.url, app.title)}
           darkMode={darkMode}
+          gridPosition={iconPositions[app.id] || { x: 1, y: 0 }}
+          onPositionChange={(newPos) => handleIconPositionChange(app.id, newPos)}
         />
-        <DesktopIcon 
-          icon="explorer_icon.png" 
-          label="Explorer" 
-          onClick={() => handleIconClick('explorer')} 
-          darkMode={darkMode}
-        />
-        <DesktopIcon 
-          icon="cmd_icon.png" 
-          label="CMD" 
-          onClick={() => handleIconClick('cmd')} 
-          darkMode={darkMode}
-        />
-        <DesktopIcon 
-          icon="notepad_icon.png" 
-          label="Notepad" 
-          onClick={() => handleIconClick('notepad')} 
-          darkMode={darkMode}
-        />
-        <DesktopIcon 
-          icon="eaglercraft_icon.png" 
-          label="Eaglercraft" 
-          onClick={() => handleIconClick('eaglercraft')} 
-          darkMode={darkMode}
-        />
-        <DesktopIcon 
-          icon="solitaire_icon.png" 
-          label="Solitaire" 
-          onClick={() => handleIconClick('solitaire')} 
-          darkMode={darkMode}
-        />
-        
-        {/* Render installed apps from app store */}
-        {installedApps.map((app) => (
-          <DesktopIcon 
-            key={app.id}
-            icon={`${app.id}_icon.png`}
-            label={app.title} 
-            onClick={() => handleIconClick(app.id, app.url, app.title)} 
-            darkMode={darkMode}
-          />
-        ))}
-      </div>
+      ))}
       
       {windows.map((window) => (
         <Window
