@@ -1,7 +1,8 @@
-const express = require('express');
-const cors = require('cors');
-const { createProxyMiddleware } = require('http-proxy-middleware');
-const fetch = require('node-fetch');
+// ES Module version of the proxy server
+import express from 'express';
+import cors from 'cors';
+import fetch from 'node-fetch';
+import { createServer } from 'http';
 
 const app = express();
 const PORT = 3000;
@@ -193,4 +194,4 @@ process.on('SIGTERM', () => {
   });
 });
 
-module.exports = app;
+export default app;
