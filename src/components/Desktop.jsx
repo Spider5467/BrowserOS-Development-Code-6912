@@ -10,8 +10,11 @@ import Settings from './Settings/Settings';
 import Calendar from './Calendar/Calendar';
 import SoundControl from './SoundControl/SoundControl';
 import Notepad from './Notepad/Notepad';
-import { motion } from 'framer-motion';
+import cloudProxyClient from '../proxy/cloudProxyClient';
+import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
+
+const { FiX, FiAlertCircle, FiCloud, FiCheckCircle, FiServer, FiRefreshCw, FiZap } = FiIcons;
 
 const Desktop = () => {
   const [windows, setWindows] = useState([]);
@@ -20,8 +23,11 @@ const Desktop = () => {
   const [installedApps, setInstalledApps] = useState([]);
   const [darkMode, setDarkMode] = useState(false);
   const [iconPositions, setIconPositions] = useState({});
+  const [showProxyNotice, setShowProxyNotice] = useState(true);
+  const [proxyStatus, setProxyStatus] = useState('connecting');
+  const [proxyDetails, setProxyDetails] = useState({});
   const desktopRef = useRef(null);
-  
+
   // Default icon positions (grid coordinates)
   const defaultIconPositions = {
     'browser': { x: 0, y: 0 },
@@ -33,6 +39,24 @@ const Desktop = () => {
     'solitaire': { x: 0, y: 6 }
   };
 
+  // Listen to cloud proxy status changes
+  useEffect(() => {
+    cloudProxyClient.onStatusChange((status) => {
+      setProxyStatus(status.status);
+      setProxyDetails(status);
+    });
+  }, []);
+
+  // Auto-hide proxy notice after successful connection
+  useEffect(() => {
+    if (proxyStatus === 'connected') {
+      const timer = setTimeout(() => {
+        setShowProxyNotice(false);
+      }, 3000); // Hide after 3 seconds when connected
+      return () => clearTimeout(timer);
+    }
+  }, [proxyStatus]);
+
   // Load saved state on mount
   useEffect(() => {
     const loadSavedState = () => {
@@ -42,7 +66,6 @@ const Desktop = () => {
         const savedInstalledApps = localStorage.getItem('browserOS_installedApps');
         const savedDarkMode = localStorage.getItem('browserOS_darkMode');
         const savedIconPositions = localStorage.getItem('browserOS_iconPositions');
-        
         if (savedWindows) setWindows(JSON.parse(savedWindows));
         if (savedOpenApps) setOpenApps(JSON.parse(savedOpenApps));
         if (savedInstalledApps) setInstalledApps(JSON.parse(savedInstalledApps));
@@ -52,7 +75,7 @@ const Desktop = () => {
         } else {
           setIconPositions(defaultIconPositions);
         }
-        
+
         // Show continue dialog if there are saved windows
         if (savedWindows && JSON.parse(savedWindows).length > 0) {
           const shouldContinue = window.confirm('Would you like to continue your previous session?');
@@ -66,7 +89,6 @@ const Desktop = () => {
         setIconPositions(defaultIconPositions);
       }
     };
-    
     loadSavedState();
   }, []);
 
@@ -86,7 +108,6 @@ const Desktop = () => {
   const createWindow = (type, url = '', title = '', appIcon = '') => {
     const newZIndex = zIndexCounter + 1;
     setZIndexCounter(newZIndex);
-    
     const newWindow = {
       id: `window-${Date.now()}`,
       type,
@@ -94,12 +115,8 @@ const Desktop = () => {
       title: title || type,
       icon: appIcon,
       zIndex: newZIndex,
-      position: {
-        x: 50 + Math.random() * 100,
-        y: 50 + Math.random() * 100
-      }
+      position: { x: 50 + Math.random() * 100, y: 50 + Math.random() * 100 }
     };
-    
     setWindows([...windows, newWindow]);
     setOpenApps([...openApps, newWindow]);
   };
@@ -112,23 +129,18 @@ const Desktop = () => {
   const bringToFront = (id) => {
     const newZIndex = zIndexCounter + 1;
     setZIndexCounter(newZIndex);
-    
     setWindows(
-      windows.map(window => 
-        window.id === id 
-          ? { ...window, zIndex: newZIndex } 
-          : window
-      )
+      windows.map(window => window.id === id ? { ...window, zIndex: newZIndex } : window)
     );
   };
-  
+
   const reopenApp = (appId) => {
     const existingWindow = windows.find(window => window.id === appId);
     if (existingWindow) {
       bringToFront(existingWindow.id);
       return;
     }
-    
+
     const app = openApps.find(app => app.id === appId);
     if (app) {
       createWindow(app.type, app.url, app.title, app.icon);
@@ -181,23 +193,15 @@ const Desktop = () => {
         break;
     }
   };
-  
+
   const handleAppInstall = (appId, appUrl, appTitle) => {
     if (!installedApps.some(app => app.id === appId)) {
-      const newApp = {
-        id: appId,
-        url: appUrl,
-        title: appTitle,
-        icon: `${appId}_icon.png`
-      };
+      const newApp = { id: appId, url: appUrl, title: appTitle, icon: `${appId}_icon.png` };
       setInstalledApps([...installedApps, newApp]);
       
       // Find next available position for new app
       const nextPosition = findNextAvailablePosition();
-      setIconPositions(prev => ({
-        ...prev,
-        [appId]: nextPosition
-      }));
+      setIconPositions(prev => ({ ...prev, [appId]: nextPosition }));
       
       createWindow('browser', appUrl, appTitle, `${appId}_icon.png`);
     } else {
@@ -231,10 +235,7 @@ const Desktop = () => {
     );
     
     if (!isOccupied) {
-      setIconPositions(prev => ({
-        ...prev,
-        [iconId]: newPosition
-      }));
+      setIconPositions(prev => ({ ...prev, [iconId]: newPosition }));
     }
   };
 
@@ -266,12 +267,51 @@ const Desktop = () => {
     { id: 'solitaire', icon: 'solitaire_icon.png', label: 'Solitaire' }
   ];
 
+  const handleRetryConnection = async () => {
+    await cloudProxyClient.retry();
+  };
+
+  const getProxyStatusMessage = () => {
+    switch (proxyStatus) {
+      case 'connected': 
+        return {
+          title: 'Cloud Proxy Connected!',
+          message: 'Successfully connected to working proxy server. Full browsing enabled.',
+          icon: FiCheckCircle,
+          color: 'text-green-400'
+        };
+      case 'connecting': 
+        return {
+          title: 'Finding Working Proxy...',
+          message: 'Testing multiple servers to find the best connection...',
+          icon: FiCloud,
+          color: 'text-yellow-400 animate-pulse'
+        };
+      case 'fallback': 
+        return {
+          title: 'Backup Mode Active',
+          message: 'Using backup proxy services. Basic browsing available.',
+          icon: FiServer,
+          color: 'text-orange-400'
+        };
+      default: 
+        return {
+          title: 'Proxy Connection Error',
+          message: 'Unable to connect to proxy servers. Retrying...',
+          icon: FiAlertCircle,
+          color: 'text-red-400'
+        };
+    }
+  };
+
+  const statusInfo = getProxyStatusMessage();
+
   return (
     <div 
       className={`h-screen w-full relative overflow-hidden ${darkMode ? 'dark' : ''}`}
       style={{
         backgroundImage: darkMode 
-          ? `url('https://quest-media-storage-bucket.s3.us-east-2.amazonaws.com/1753584457691-dark_mode.jpg')`
+          ? `url('https://quest-media-storage-bucket.s3.us-east-2.amazonaws.com/1753584457691-dark_mode.jpg')` 
           : `url('https://quest-media-storage-bucket.s3.us-east-2.amazonaws.com/1753459693908-make%20a%20cover%20image%20for%20an%20os%20called%20browserOS_1753429132300.jpg')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
@@ -279,23 +319,66 @@ const Desktop = () => {
       }}
       ref={desktopRef}
     >
-      {/* Grid overlay for development (remove in production) */}
-      {/* <div className="absolute inset-0 pointer-events-none opacity-10">
-        {Array.from({ length: Math.ceil(window.innerWidth / 80) }).map((_, x) =>
-          Array.from({ length: Math.ceil(window.innerHeight / 80) }).map((_, y) => (
-            <div
-              key={`${x}-${y}`}
-              className="absolute border border-white"
-              style={{
-                left: 8 + x * 80,
-                top: 8 + y * 80,
-                width: 80,
-                height: 80
-              }}
-            />
-          ))
+      {/* Cloud Proxy Status Notice */}
+      <AnimatePresence>
+        {showProxyNotice && (
+          <motion.div 
+            className={`absolute top-4 left-1/2 transform -translate-x-1/2 z-50 
+              ${proxyStatus === 'connected' ? 'bg-green-900' : 
+                proxyStatus === 'connecting' ? 'bg-blue-900' : 
+                proxyStatus === 'error' ? 'bg-red-900' : 
+                proxyStatus === 'fallback' ? 'bg-orange-900' : 'bg-gray-900'} 
+              bg-opacity-95 backdrop-blur-sm rounded-lg shadow-xl p-4 flex items-center gap-3 max-w-md`}
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+          >
+            <div className="text-white">
+              <SafeIcon 
+                icon={statusInfo.icon}
+                className={`text-3xl ${statusInfo.color}`} 
+              />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-white text-sm">
+                {statusInfo.title}
+              </h3>
+              <p className="text-xs text-gray-300 mt-1">
+                {statusInfo.message}
+              </p>
+              {proxyDetails.server && proxyStatus === 'connected' && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Server: {proxyDetails.server.includes('corsproxy.io') ? 'CorsProxy.io' : 
+                           proxyDetails.server.includes('proxy.cors.sh') ? 'Proxy.CORS.sh' :
+                           proxyDetails.server.includes('codetabs.com') ? 'CodeTabs' :
+                           'Working Proxy'}
+                </p>
+              )}
+            </div>
+            <div className="flex gap-1">
+              {proxyStatus !== 'connected' && (
+                <motion.button 
+                  className="p-1.5 text-gray-300 hover:text-white bg-white bg-opacity-20 rounded"
+                  onClick={handleRetryConnection}
+                  title="Find Working Server"
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <SafeIcon icon={FiZap} className="text-sm" />
+                </motion.button>
+              )}
+              <motion.button 
+                className="text-gray-300 hover:text-white p-1"
+                onClick={() => setShowProxyNotice(false)}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+              >
+                <SafeIcon icon={FiX} />
+              </motion.button>
+            </div>
+          </motion.div>
         )}
-      </div> */}
+      </AnimatePresence>
 
       {/* System Apps */}
       {systemApps.map((app) => (
@@ -322,7 +405,7 @@ const Desktop = () => {
           onPositionChange={(newPos) => handleIconPositionChange(app.id, newPos)}
         />
       ))}
-      
+
       {windows.map((window) => (
         <Window
           key={window.id}
@@ -347,9 +430,9 @@ const Desktop = () => {
           {window.type === 'notepad' && <Notepad darkMode={darkMode} />}
         </Window>
       ))}
-      
-      <Taskbar 
-        onStartClick={createWindowPrompt} 
+
+      <Taskbar
+        onStartClick={createWindowPrompt}
         openApps={openApps}
         onAppClick={reopenApp}
         onAppOpen={handleIconClick}
@@ -359,6 +442,11 @@ const Desktop = () => {
       />
     </div>
   );
+};
+
+// Helper component for SafeIcon to avoid importing in this file
+const SafeIcon = ({ icon, className }) => {
+  return React.createElement(icon, { className });
 };
 
 export default Desktop;

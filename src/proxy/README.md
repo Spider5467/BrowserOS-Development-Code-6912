@@ -1,172 +1,212 @@
-# Enhanced BrowserOS Proxy Server
+# BrowserOS Network Proxy Server
 
-This enhanced proxy server enables the BrowserOS browser to bypass website restrictions and iframe blocking, with special support for complex sites like YouTube, Facebook, and other platforms that normally prevent iframe embedding.
+This enhanced proxy server enables BrowserOS to be accessible from **any device on your network**, including mobile phones, tablets, and other computers. No more localhost-only restrictions!
 
-## 🚀 New Features
+## 🌐 Network Features
 
-### Complete Resource Support
-- **Image support**: All image formats (JPG, PNG, GIF, WebP, SVG, etc.)
-- **Video and audio**: Proper handling of multimedia content
-- **Font files**: Web fonts and icon fonts load correctly
-- **CSS files**: Stylesheets with URL rewriting for background images
-- **JavaScript files**: Script files with careful URL rewriting
-- **Binary content**: PDFs, ZIP files, and other binary formats
+### Multi-Device Access
+- **Mobile Support**: Access from smartphones and tablets
+- **Cross-Platform**: Works on iOS, Android, Windows, Mac, Linux
+- **Network Discovery**: Automatically detects available proxy servers
+- **Real-time Status**: Live connection monitoring across devices
 
-### YouTube & Complex Site Support
-- **YouTube iframe compatibility**: Automatically handles YouTube's anti-iframe protection
-- **Frame-busting prevention**: Blocks JavaScript that tries to break out of iframes  
-- **Dynamic content rewriting**: Rewrites URLs and content on-the-fly
-- **Enhanced headers**: Mimics real browser behavior more accurately
+### Enhanced Compatibility
+- **Complete CORS Support**: Unrestricted cross-origin requests
+- **Frame Protection**: Advanced iframe security bypass
+- **Mobile Optimization**: Touch-friendly interface support
+- **Responsive Design**: Adapts to any screen size
 
-### Advanced Protection
-- **Content Security Policy removal**: Strips CSP headers that prevent embedding
-- **X-Frame-Options bypass**: Removes headers that block iframe usage
-- **JavaScript injection**: Adds protective scripts to prevent frame-busting
-- **Domain spoofing protection**: Handles domain-based restrictions
+## 🚀 Quick Start
 
-### Better Compatibility  
-- **POST request support**: Handles form submissions through proxy
-- **API request proxying**: Supports AJAX and API calls
-- **Cookie handling**: Maintains session state across requests
-- **Redirect following**: Automatically follows redirects
-- **Responsive images**: Handles srcset attributes for different screen sizes
-
-## 🎯 Supported Content Types
-
-The enhanced proxy now properly handles:
-- ✅ **HTML pages** - Full page rendering with frame protection
-- ✅ **Images** - JPG, PNG, GIF, WebP, SVG, ICO
-- ✅ **Stylesheets** - CSS files with background image rewriting
-- ✅ **JavaScript** - JS files with careful URL handling
-- ✅ **Fonts** - Web fonts (WOFF, WOFF2, TTF, OTF)
-- ✅ **Videos** - MP4, WebM, and other video formats
-- ✅ **Audio** - MP3, WAV, OGG audio files
-- ✅ **Documents** - PDF files and other binary documents
-
-## 🎯 Supported Sites
-
-The enhanced proxy now works with:
-- ✅ **YouTube** - Full video playback and navigation with thumbnails
-- ✅ **Google services** - Search, Drive, Docs (limited) with images
-- ✅ **Social media** - Facebook, Twitter, Instagram with profile pictures
-- ✅ **News sites** - Most major news websites with all images
-- ✅ **Educational** - Khan Academy, Coursera, edX with media content
-- ✅ **Entertainment** - Netflix (login page), Spotify (web player)
-- ✅ **Shopping** - Amazon, eBay (browsing) with product images
-- ✅ **Image galleries** - Pinterest, Flickr, Instagram
-
-## 📋 How to Use
-
-1. **Start the enhanced proxy server**:
-   ```bash
-   node src/proxy/startProxy.js
-   ```
-
-2. **The server will start on port 3000** with enhanced features:
-   - Health check endpoint: `http://localhost:3000/health`
-   - Main proxy: `http://localhost:3000/proxy?url=TARGET_URL`
-   - API proxy: `http://localhost:3000/api-proxy?url=TARGET_URL`
-
-3. **In BrowserOS**: 
-   - The proxy is enabled by default for better compatibility
-   - Click the shield icon in the browser to see status
-   - Green shield = connected and working
-   - Red shield = proxy server offline
-
-4. **Test with image-heavy sites**:
-   - Navigate to `https://pinterest.com`
-   - Navigate to `https://instagram.com`
-   - Navigate to `https://amazon.com`
-   - All images, thumbnails, and media should load properly
-
-## 🔧 Technical Implementation
-
-### Binary Content Detection
-```javascript
-const isBinaryContent = (contentType) => {
-  const binaryTypes = [
-    'image/', 'video/', 'audio/', 'application/octet-stream',
-    'application/pdf', 'font/', 'application/font'
-  ];
-  return binaryTypes.some(type => contentType?.includes(type));
-};
+### 1. Start the Network Proxy
+```bash
+npm run proxy
+# or
+node src/proxy/startProxy.js
 ```
 
-### Enhanced URL Rewriting
-- Rewrites all URLs in HTML, CSS, and JavaScript
-- Handles `src`, `href`, `srcset`, `background-image`, and `@import`
-- Preserves relative URLs using proper base href
-- Careful JavaScript rewriting to avoid breaking functionality
+### 2. Note the Network URLs
+The server will display URLs like:
+```
+🌐 Network accessible on:
+   • Local: http://localhost:3000
+   • Network: http://192.168.1.100:3000
+   • Network: http://10.0.0.50:3000
+```
 
-### Image-Specific Features
-- **Responsive images**: Handles `srcset` attributes for different screen sizes
-- **Background images**: CSS `url()` rewriting for background images
-- **Icon fonts**: Proper handling of web font files
-- **SVG images**: Both inline and external SVG support
+### 3. Access from Any Device
+Open BrowserOS on any device using the network URLs:
+- **Same Computer**: `http://localhost:3000`
+- **Other Devices**: `http://192.168.1.100:3000` (use your actual IP)
 
-### Performance Optimizations
-- Direct binary streaming for large files
-- Proper caching headers preservation
-- Compression handling for better performance
-- Content-Length preservation for progress indicators
+## 📱 Mobile Setup
 
-## 🚨 Important Notes
+### iPhone/iPad
+1. Open Safari
+2. Navigate to `http://[YOUR-IP]:3000`
+3. Add to Home Screen for app-like experience
+4. Proxy will be auto-detected
 
-### What's Fixed
-- ✅ All images now load properly through proxy
-- ✅ CSS background images work correctly
-- ✅ Web fonts and icons display properly
-- ✅ Video thumbnails and previews load
-- ✅ Responsive images work on mobile devices
-- ✅ PDF documents can be viewed
-- ✅ Binary downloads work correctly
+### Android
+1. Open Chrome or Firefox
+2. Navigate to `http://[YOUR-IP]:3000`
+3. Add to Home Screen
+4. Enable Desktop Site if needed
 
-### Limitations
-- Some sites may still detect proxy usage
-- Login functionality may be limited on some sites
-- Heavy JavaScript applications may have reduced functionality
-- DRM-protected content will not work
+### Other Devices
+- **Smart TVs**: Use built-in browser
+- **Tablets**: Any modern browser
+- **Other Computers**: Chrome, Firefox, Safari, Edge
 
-### Performance
-- Binary content is streamed efficiently
-- Large images load with proper progress indication
-- Caching headers are preserved for better performance
-- Content compression is handled correctly
+## 🔧 Network Configuration
+
+### Firewall Setup
+Make sure port 3000 is allowed:
+
+**Windows:**
+```cmd
+netsh advfirewall firewall add rule name="BrowserOS Proxy" dir=in action=allow protocol=TCP localport=3000
+```
+
+**macOS:**
+```bash
+sudo pfctl -f /etc/pf.conf
+# Or use System Preferences > Security & Privacy > Firewall
+```
+
+**Linux:**
+```bash
+sudo ufw allow 3000
+# or
+sudo iptables -A INPUT -p tcp --dport 3000 -j ACCEPT
+```
+
+### Router Configuration
+Most home routers don't require changes, but if needed:
+1. Access router admin panel
+2. Enable port forwarding for port 3000
+3. Point to your computer's local IP
+
+## 🌟 Advanced Features
+
+### Automatic Discovery
+BrowserOS automatically scans for proxy servers on:
+- `localhost:3000`
+- Common network ranges (192.168.x.x, 10.0.x.x, etc.)
+- Displays all available servers in the proxy settings
+
+### Load Balancing
+If multiple proxy servers are running:
+- BrowserOS shows all available options
+- Users can manually select preferred server
+- Automatic failover to working servers
+
+### Security Features
+- **Network-safe CORS**: Allows cross-origin requests safely
+- **Frame protection**: Bypasses iframe restrictions
+- **Content filtering**: Removes frame-busting scripts
+- **Header sanitization**: Cleans security headers
 
 ## 🔍 Troubleshooting
 
-### Images Not Loading
-- Check if proxy status shows "Connected"
-- Try refreshing the page
-- Check browser console for any errors
-- Some sites may block hotlinking
+### Can't Access from Other Devices
 
-### Slow Loading
-- Large images may take time to load through proxy
-- Check network connection
-- Restart proxy server if needed
+1. **Check Firewall**:
+   - Ensure port 3000 is open
+   - Try temporarily disabling firewall
 
-### CSS/Styling Issues
-- CSS files with external resources may need multiple attempts
-- Some sites use complex CSS that may not proxy perfectly
-- Try refreshing if styles don't load initially
+2. **Verify Network**:
+   - Ensure devices are on same WiFi network
+   - Check if network allows device-to-device communication
 
-## 📊 Status Indicators
+3. **Test Connection**:
+   ```bash
+   # From another device, test if server is reachable
+   curl http://[SERVER-IP]:3000/health
+   ```
 
-In the browser interface:
-- 🟢 **Green Shield**: Proxy connected, all content types supported
-- 🟡 **Yellow Shield**: Proxy checking/connecting  
-- 🔴 **Red Shield**: Proxy server offline
-- 🔘 **Gray Shield**: Proxy disabled
+### Mobile Browser Issues
 
-## 🛠️ Advanced Configuration
+1. **Enable Desktop Mode**:
+   - Some mobile sites work better in desktop mode
+   - Toggle in browser settings
 
-The proxy server can be customized by modifying `proxyServer.js`:
+2. **Clear Cache**:
+   - Clear browser cache and cookies
+   - Try incognito/private mode
 
-- **Add custom binary types**: Extend the `binaryTypes` array
-- **Modify caching**: Adjust cache headers handling
-- **Add compression**: Enable/disable compression for different content types
-- **Custom rewriting**: Add site-specific URL rewriting rules
-- **Performance tuning**: Adjust timeouts and buffer sizes
+3. **Network Timeout**:
+   - Check WiFi connection strength
+   - Try moving closer to router
 
-This enhanced proxy system now provides complete website compatibility including all images, media, and binary content while maintaining the security and functionality of the BrowserOS environment.
+### Performance Optimization
+
+1. **Server Location**:
+   - Run proxy on fastest computer
+   - Use wired connection for proxy server
+
+2. **Network Quality**:
+   - Use 5GHz WiFi when possible
+   - Avoid network congestion times
+
+## 📊 Monitoring & Analytics
+
+### Health Checks
+Visit `/health` endpoint for server status:
+```json
+{
+  "status": "ok",
+  "networkIPs": ["192.168.1.100", "10.0.0.50"],
+  "clientIP": "192.168.1.105",
+  "accessUrls": [
+    "http://localhost:3000",
+    "http://192.168.1.100:3000"
+  ]
+}
+```
+
+### Network Information
+Visit `/network-info` for detailed network data:
+```json
+{
+  "networkIPs": ["192.168.1.100"],
+  "port": 3000,
+  "proxyUrls": ["http://192.168.1.100:3000/proxy"]
+}
+```
+
+## 🎯 Use Cases
+
+### Family Computing
+- **Kids' Devices**: Safe browsing on tablets
+- **Smart TVs**: Web browsing on TV
+- **Shared Access**: Multiple family members
+
+### Work/Education
+- **BYOD Environments**: Personal devices at work
+- **Classroom Setup**: Student device access
+- **Presentation Mode**: Demo from any device
+
+### Development
+- **Cross-Device Testing**: Test on real devices
+- **Mobile Development**: Debug mobile sites
+- **Network Debugging**: Monitor traffic patterns
+
+## 🔐 Security Considerations
+
+### Network Security
+- **Local Network Only**: Server only accessible on local network
+- **No Internet Exposure**: Doesn't open to external internet
+- **Request Logging**: All requests are logged with client IPs
+
+### Content Filtering
+- **Frame Protection**: Safely bypasses iframe restrictions
+- **Script Sanitization**: Removes harmful frame-busting code
+- **Header Cleaning**: Removes restrictive security headers
+
+### Privacy
+- **No Data Storage**: Proxy doesn't store browsed content
+- **Session Isolation**: Each device maintains separate sessions
+- **Local Processing**: All processing happens on local network
+
+This network-enabled proxy transforms BrowserOS into a truly multi-device, cross-platform browsing solution perfect for modern connected homes and workplaces!
