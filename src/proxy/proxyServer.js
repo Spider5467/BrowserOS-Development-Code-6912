@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import { createProxyMiddleware } from 'http-proxy-middleware';
 import fetch from 'node-fetch';
 import { createServer } from 'http';
 
@@ -25,6 +24,7 @@ app.use((req, res, next) => {
 
 // Helper function to determine if content is binary
 const isBinaryContent = (contentType) => {
+  if (!contentType) return false;
   const binaryTypes = [
     'image/',
     'video/',
@@ -35,7 +35,7 @@ const isBinaryContent = (contentType) => {
     'font/',
     'application/font'
   ];
-  return binaryTypes.some(type => contentType && contentType.toLowerCase().includes(type));
+  return binaryTypes.some(type => contentType.toLowerCase().includes(type));
 };
 
 // Enhanced proxy endpoint that handles complex sites like YouTube AND images
@@ -52,7 +52,7 @@ app.get('/proxy', async (req, res) => {
     // Enhanced headers to mimic a real browser more closely
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': '*/*',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
       'Accept-Language': 'en-US,en;q=0.9',
       'Accept-Encoding': 'gzip, deflate, br',
       'DNT': '1',
@@ -442,13 +442,17 @@ const server = createServer(app);
 server.listen(PORT, () => {
   console.log(`Enhanced proxy server running on http://localhost:${PORT}`);
   console.log('Features enabled:');
-  console.log('- YouTube iframe support');
+  console.log('- Website iframe support');
   console.log('- Frame-busting protection');
   console.log('- Dynamic content rewriting');
   console.log('- CORS bypass');
   console.log('- POST/API request proxying');
   console.log('- Binary content support (images, videos, etc.)');
   console.log('- CSS and JavaScript URL rewriting');
+  console.log('');
+  console.log('Test the proxy:');
+  console.log('- Health check: http://localhost:3000/health');
+  console.log('- Proxy example: http://localhost:3000/proxy?url=https://example.com');
 });
 
 export default app;
