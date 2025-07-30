@@ -45,29 +45,19 @@ app.get('/proxy', async (req, res) => {
       res.setHeader('Content-Type', contentType);
     }
     
-    // Copy other important headers
-    const headersToForward = [
-      'cache-control',
-      'etag',
-      'last-modified',
-      'content-length',
-      'content-encoding',
-      'content-disposition'
-    ];
-    
-    headersToForward.forEach(header => {
-      const value = response.headers.get(header);
-      if (value) {
-        res.setHeader(header, value);
+    // Copy all headers from the original response
+    for (const [key, value] of response.headers.entries()) {
+      // Skip headers that would prevent proper framing
+      if (key.toLowerCase() !== 'x-frame-options' && 
+          key.toLowerCase() !== 'content-security-policy' &&
+          key.toLowerCase() !== 'frame-options') {
+        res.setHeader(key, value);
       }
-    });
+    }
     
-    // Remove headers that prevent framing
-    res.removeHeader('X-Frame-Options');
-    res.removeHeader('Content-Security-Policy');
-    
-    // Pipe response directly
-    response.body.pipe(res);
+    // Stream the response data directly to the client
+    const buffer = await response.arrayBuffer();
+    res.end(Buffer.from(buffer));
     
   } catch (error) {
     console.error('Proxy error:', error);
