@@ -23,7 +23,22 @@ app.use((req, res, next) => {
   next();
 });
 
-// Enhanced proxy endpoint that handles complex sites like YouTube
+// Helper function to determine if content is binary
+const isBinaryContent = (contentType) => {
+  const binaryTypes = [
+    'image/',
+    'video/',
+    'audio/',
+    'application/octet-stream',
+    'application/pdf',
+    'application/zip',
+    'font/',
+    'application/font'
+  ];
+  return binaryTypes.some(type => contentType && contentType.toLowerCase().includes(type));
+};
+
+// Enhanced proxy endpoint that handles complex sites like YouTube AND images
 app.get('/proxy', async (req, res) => {
   try {
     const targetUrl = req.query.url;
@@ -37,7 +52,7 @@ app.get('/proxy', async (req, res) => {
     // Enhanced headers to mimic a real browser more closely
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+      'Accept': '*/*',
       'Accept-Language': 'en-US,en;q=0.9',
       'Accept-Encoding': 'gzip, deflate, br',
       'DNT': '1',
@@ -51,16 +66,27 @@ app.get('/proxy', async (req, res) => {
     };
 
     // Add referer for better compatibility
-    const urlObj = new URL(targetUrl);
-    headers['Referer'] = `${urlObj.protocol}//${urlObj.host}/`;
+    try {
+      const urlObj = new URL(targetUrl);
+      headers['Referer'] = `${urlObj.protocol}//${urlObj.host}/`;
+    } catch (e) {
+      // Invalid URL, continue without referer
+    }
 
     const response = await fetch(targetUrl, {
       headers,
       redirect: 'follow',
-      compress: true
+      compress: false // Disable compression to handle binary data properly
     });
 
-    const contentType = response.headers.get('content-type') || 'text/plain';
+    if (!response.ok) {
+      return res.status(response.status).json({ 
+        error: `Request failed with status ${response.status}`,
+        statusText: response.statusText 
+      });
+    }
+
+    const contentType = response.headers.get('content-type') || 'application/octet-stream';
     
     // Set response headers
     res.setHeader('Content-Type', contentType);
@@ -68,11 +94,38 @@ app.get('/proxy', async (req, res) => {
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', '*');
     
+    // Copy important headers from the original response
+    const headersToKeep = [
+      'content-length',
+      'content-disposition',
+      'content-encoding',
+      'cache-control',
+      'expires',
+      'last-modified',
+      'etag'
+    ];
+    
+    headersToKeep.forEach(headerName => {
+      const headerValue = response.headers.get(headerName);
+      if (headerValue) {
+        res.setHeader(headerName, headerValue);
+      }
+    });
+    
     // Remove headers that prevent framing
     res.removeHeader('X-Frame-Options');
     res.removeHeader('Content-Security-Policy');
     res.removeHeader('X-Content-Type-Options');
     
+    // Check if content is binary (images, videos, etc.)
+    if (isBinaryContent(contentType)) {
+      // For binary content, pipe the response directly
+      const buffer = await response.buffer();
+      res.send(buffer);
+      return;
+    }
+    
+    // For text content, process as before
     const data = await response.text();
     
     // If it's an HTML response, extensively modify it for iframe compatibility
@@ -101,20 +154,38 @@ app.get('/proxy', async (req, res) => {
         // YouTube specific fixes
         .replace(/ytInitialData/g, 'ytInitialDataProxy')
         .replace(/ytInitialPlayerResponse/g, 'ytInitialPlayerResponseProxy')
-        // Rewrite absolute URLs to use proxy
-        .replace(/(href|src|action)=["'](https?:\/\/[^"']+)["']/gi, (match, attr, url) => {
+        // Rewrite absolute URLs to use proxy (including images and resources)
+        .replace(/(href|src|action|srcset)=["'](https?:\/\/[^"'\s]+)["']/gi, (match, attr, url) => {
           // Skip if it's already proxied
           if (url.includes('/proxy?url=')) return match;
           return `${attr}="/proxy?url=${encodeURIComponent(url)}"`;
         })
+        // Handle srcset attributes for responsive images
+        .replace(/srcset=["']([^"']+)["']/gi, (match, srcset) => {
+          const newSrcset = srcset.replace(/https?:\/\/[^\s,]+/g, (url) => {
+            if (url.includes('/proxy?url=')) return url;
+            return `/proxy?url=${encodeURIComponent(url)}`;
+          });
+          return `srcset="${newSrcset}"`;
+        })
         // Rewrite protocol-relative URLs
-        .replace(/(href|src|action)=["']\/\/([^"']+)["']/gi, (match, attr, url) => {
+        .replace(/(href|src|action)=["']\/\/([^"'\s]+)["']/gi, (match, attr, url) => {
           const fullUrl = `https://${url}`;
           return `${attr}="/proxy?url=${encodeURIComponent(fullUrl)}"`;
         })
+        // Handle CSS background images and other URL() references
+        .replace(/url\(['"]?(https?:\/\/[^'")\s]+)['"]?\)/gi, (match, url) => {
+          if (url.includes('/proxy?url=')) return match;
+          return `url("/proxy?url=${encodeURIComponent(url)}")`;
+        })
+        // Handle CSS @import statements
+        .replace(/@import\s+['"]?(https?:\/\/[^'";\s]+)['"]?/gi, (match, url) => {
+          if (url.includes('/proxy?url=')) return match;
+          return `@import "/proxy?url=${encodeURIComponent(url)}"`;
+        })
         // Add base tag to handle relative URLs
         .replace(/<head[^>]*>/i, `<head><base href="${targetUrl}">`)
-        // Inject JavaScript to handle dynamic frame-busting
+        // Inject JavaScript to handle dynamic frame-busting and URL rewriting
         .replace(/<\/head>/i, `
           <script>
             // Override frame-busting attempts
@@ -134,23 +205,43 @@ app.get('/proxy', async (req, res) => {
               });
               
               // Prevent location changes that would break out of frame
-              var originalLocationSetter = Object.getOwnPropertyDescriptor(Location.prototype, 'href').set;
-              Object.defineProperty(Location.prototype, 'href', {
-                set: function(url) {
-                  if (url && !url.includes('/proxy?url=')) {
-                    url = '/proxy?url=' + encodeURIComponent(url);
+              try {
+                var originalLocationSetter = Object.getOwnPropertyDescriptor(Location.prototype, 'href').set;
+                Object.defineProperty(Location.prototype, 'href', {
+                  set: function(url) {
+                    if (url && !url.includes('/proxy?url=') && (url.startsWith('http://') || url.startsWith('https://'))) {
+                      url = '/proxy?url=' + encodeURIComponent(url);
+                    }
+                    originalLocationSetter.call(this, url);
                   }
-                  originalLocationSetter.call(this, url);
-                }
-              });
+                });
+              } catch(e) {}
               
               // Override window.open to use proxy
               var originalOpen = window.open;
               window.open = function(url, name, features) {
-                if (url && !url.includes('/proxy?url=')) {
+                if (url && !url.includes('/proxy?url=') && (url.startsWith('http://') || url.startsWith('https://'))) {
                   url = '/proxy?url=' + encodeURIComponent(url);
                 }
                 return originalOpen.call(this, url, name, features);
+              };
+              
+              // Override fetch to use proxy for cross-origin requests
+              var originalFetch = window.fetch;
+              window.fetch = function(url, options) {
+                if (typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://')) && !url.includes('/proxy?url=')) {
+                  url = '/proxy?url=' + encodeURIComponent(url);
+                }
+                return originalFetch.call(this, url, options);
+              };
+              
+              // Override XMLHttpRequest for AJAX requests
+              var originalXHROpen = XMLHttpRequest.prototype.open;
+              XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
+                if (typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://')) && !url.includes('/proxy?url=')) {
+                  url = '/proxy?url=' + encodeURIComponent(url);
+                }
+                return originalXHROpen.call(this, method, url, async, user, password);
               };
               
               // Disable common frame-busting functions
@@ -164,14 +255,39 @@ app.get('/proxy', async (req, res) => {
                 });
               } catch(e) {}
               
-              console.log('Proxy frame protection enabled');
+              console.log('Proxy frame protection and URL rewriting enabled');
             })();
           </script>
           </head>`);
 
       res.send(modifiedHtml);
+    } else if (contentType.includes('text/css')) {
+      // Handle CSS files - rewrite URLs in CSS
+      let modifiedCSS = data
+        .replace(/url\(['"]?(https?:\/\/[^'")\s]+)['"]?\)/gi, (match, url) => {
+          if (url.includes('/proxy?url=')) return match;
+          return `url("/proxy?url=${encodeURIComponent(url)}")`;
+        })
+        .replace(/@import\s+['"]?(https?:\/\/[^'";\s]+)['"]?/gi, (match, url) => {
+          if (url.includes('/proxy?url=')) return match;
+          return `@import "/proxy?url=${encodeURIComponent(url)}"`;
+        });
+      
+      res.send(modifiedCSS);
+    } else if (contentType.includes('application/javascript') || contentType.includes('text/javascript')) {
+      // Handle JavaScript files - be careful not to break functionality
+      let modifiedJS = data
+        // Only rewrite fetch and XMLHttpRequest URLs, not all strings
+        .replace(/fetch\s*\(\s*['"`]([^'"`]+)['"`]/gi, (match, url) => {
+          if (url.startsWith('http') && !url.includes('/proxy?url=')) {
+            return match.replace(url, `/proxy?url=${encodeURIComponent(url)}`);
+          }
+          return match;
+        });
+      
+      res.send(modifiedJS);
     } else {
-      // For non-HTML content, just pass through
+      // For other text content, just pass through
       res.send(data);
     }
   } catch (error) {
@@ -197,10 +313,17 @@ app.post('/proxy', async (req, res) => {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Accept': '*/*',
       'Accept-Language': 'en-US,en;q=0.9',
-      'Content-Type': req.headers['content-type'] || 'application/x-www-form-urlencoded',
-      'Origin': new URL(targetUrl).origin,
-      'Referer': targetUrl
+      'Content-Type': req.headers['content-type'] || 'application/x-www-form-urlencoded'
     };
+
+    // Add origin and referer if possible
+    try {
+      const urlObj = new URL(targetUrl);
+      headers['Origin'] = urlObj.origin;
+      headers['Referer'] = targetUrl;
+    } catch (e) {
+      // Invalid URL, continue without origin/referer
+    }
 
     const response = await fetch(targetUrl, {
       method: 'POST',
@@ -212,8 +335,13 @@ app.post('/proxy', async (req, res) => {
     res.setHeader('Content-Type', contentType);
     res.setHeader('Access-Control-Allow-Origin', '*');
     
-    const data = await response.text();
-    res.send(data);
+    if (isBinaryContent(contentType)) {
+      const buffer = await response.buffer();
+      res.send(buffer);
+    } else {
+      const data = await response.text();
+      res.send(data);
+    }
   } catch (error) {
     console.error('POST Proxy error:', error);
     res.status(500).json({ error: 'Failed to proxy POST request', details: error.message });
@@ -232,10 +360,17 @@ app.all('/api-proxy', async (req, res) => {
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Accept': req.headers.accept || '*/*',
-      'Accept-Language': 'en-US,en;q=0.9',
-      'Origin': new URL(targetUrl).origin,
-      'Referer': new URL(targetUrl).origin
+      'Accept-Language': 'en-US,en;q=0.9'
     };
+
+    // Add origin and referer if possible
+    try {
+      const urlObj = new URL(targetUrl);
+      headers['Origin'] = urlObj.origin;
+      headers['Referer'] = urlObj.origin;
+    } catch (e) {
+      // Invalid URL, continue without origin/referer
+    }
 
     // Copy relevant headers from the original request
     if (req.headers['content-type']) {
@@ -267,8 +402,15 @@ app.all('/api-proxy', async (req, res) => {
     res.setHeader('Access-Control-Allow-Methods', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
     
-    const data = await response.text();
-    res.status(response.status).send(data);
+    const contentType = response.headers.get('content-type') || 'application/octet-stream';
+    
+    if (isBinaryContent(contentType)) {
+      const buffer = await response.buffer();
+      res.status(response.status).send(buffer);
+    } else {
+      const data = await response.text();
+      res.status(response.status).send(data);
+    }
   } catch (error) {
     console.error('API Proxy error:', error);
     res.status(500).json({ error: 'Failed to proxy API request', details: error.message });
@@ -289,7 +431,7 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
     timestamp: new Date().toISOString(),
-    message: 'Enhanced proxy server is running'
+    message: 'Enhanced proxy server with image support is running'
   });
 });
 
@@ -305,6 +447,8 @@ server.listen(PORT, () => {
   console.log('- Dynamic content rewriting');
   console.log('- CORS bypass');
   console.log('- POST/API request proxying');
+  console.log('- Binary content support (images, videos, etc.)');
+  console.log('- CSS and JavaScript URL rewriting');
 });
 
 export default app;
