@@ -1,16 +1,19 @@
 #!/usr/bin/env node
+import app from './proxyServer.js';
 
-import { startProxyServer } from './setupProxy.js';
-
-startProxyServer();
-
+console.log('Starting BrowserOS Enhanced Proxy Server...');
 console.log('Press Ctrl+C to stop the proxy server');
 
 // Keep the process running
 process.stdin.resume();
 
-// Handle shutdown
+// Handle shutdown gracefully
 process.on('SIGINT', () => {
-  console.log('Shutting down proxy server...');
-  process.exit();
+  console.log('\nShutting down proxy server...');
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.log('\nProxy server terminated');
+  process.exit(0);
 });
