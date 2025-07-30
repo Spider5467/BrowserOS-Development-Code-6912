@@ -1,19 +1,10 @@
 #!/usr/bin/env node
-import app from './proxyServer.js';
 
-console.log('Starting BrowserOS Simple Proxy Server...');
-console.log('Press Ctrl+C to stop the proxy server');
+console.log('🚀 Starting BrowserOS Proxy Server...');
+console.log('Press Ctrl+C to stop the server\n');
+
+// Import and start the proxy server
+require('./proxyServer.js');
 
 // Keep the process running
 process.stdin.resume();
-
-// Handle shutdown gracefully
-process.on('SIGINT', () => {
-  console.log('\nShutting down proxy server...');
-  process.exit(0);
-});
-
-process.on('SIGTERM', () => {
-  console.log('\nProxy server terminated');
-  process.exit(0);
-});
