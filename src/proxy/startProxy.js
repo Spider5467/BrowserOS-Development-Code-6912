@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import app from './proxyServer.js';
 
-console.log('Starting BrowserOS Enhanced Proxy Server...');
+console.log('Starting BrowserOS Simple Proxy Server...');
 console.log('Press Ctrl+C to stop the proxy server');
 
 // Keep the process running
